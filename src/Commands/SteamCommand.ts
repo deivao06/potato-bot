@@ -37,7 +37,6 @@ export class SteamCommand extends BaseCommand {
     name = 'steam';
     description = 'Get Steam game information including player count, price, and details';
     private pendingSelections: Map<string, SteamGame[]> = new Map();
-    private selectionMessages: Map<string, string> = new Map(); // chatId -> messageId
 
     async execute(context: CommandContext): Promise<void> {
         const { messageInfo, args, sock } = context;
@@ -90,18 +89,11 @@ export class SteamCommand extends BaseCommand {
         console.log('Chat ID:', chatId);
         console.log('Message ID:', messageId);
         
-        // Check if this reaction is for a valid selection message
-        const expectedMessageId = this.selectionMessages.get(chatId);
-        if (!expectedMessageId || expectedMessageId !== messageId) {
-            console.log('Reaction not for selection message. Expected:', expectedMessageId, 'Got:', messageId);
-            return;
-        }
-        
-        const pendingGames = this.pendingSelections.get(chatId);
-        console.log('Pending games for chat:', pendingGames);
+        const pendingGames = this.pendingSelections.get(messageId);
+        console.log('Pending games for message:', pendingGames);
         
         if (!pendingGames) {
-            console.log('No pending games found for this chat');
+            console.log('No pending games found for this message');
             return;
         }
 
@@ -129,9 +121,8 @@ export class SteamCommand extends BaseCommand {
             const selectedGame = pendingGames[selectedGameIndex];
             console.log('Selected game:', selectedGame);
             
-            // Clean up tracking for this chat
-            this.pendingSelections.delete(chatId);
-            this.selectionMessages.delete(chatId);
+            // Clean up tracking for this message
+            this.pendingSelections.delete(messageId);
             
             try {
                 const gameInfo = await this.getFullGameInfo(selectedGame);
@@ -189,9 +180,6 @@ export class SteamCommand extends BaseCommand {
 
     private async showGameSelection(games: SteamGame[], sock: any, messageInfo: any): Promise<void> {
         const chatId = messageInfo.key.remoteJid!;
-        
-        // Store pending selection for this chat
-        this.pendingSelections.set(chatId, games);
 
         let selectionText = "🎮 Found multiple games! React to select:\n\n";
         
@@ -208,17 +196,17 @@ export class SteamCommand extends BaseCommand {
             text: selectionText
         });
 
-        // Store the message ID for reaction validation
+        // Store the games for this specific message ID
         if (sentMessage && sentMessage.key && sentMessage.key.id) {
-            this.selectionMessages.set(chatId, sentMessage.key.id);
-            console.log('Stored selection message ID:', sentMessage.key.id, 'for chat:', chatId);
+            this.pendingSelections.set(sentMessage.key.id, games);
+            console.log('Stored selection games for message ID:', sentMessage.key.id);
+            
+            // Set timeout to clear pending selection after 60 seconds
+            setTimeout(() => {
+                this.pendingSelections.delete(sentMessage.key.id);
+                console.log('Cleared expired selection for message:', sentMessage.key.id);
+            }, 60000);
         }
-
-        // Set timeout to clear pending selection after 60 seconds
-        setTimeout(() => {
-            this.pendingSelections.delete(chatId);
-            this.selectionMessages.delete(chatId);
-        }, 60000);
     }
 
     private async sendGameInfo(gameInfo: any, sock: any, chatId: string): Promise<void> {

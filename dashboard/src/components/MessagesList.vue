@@ -31,9 +31,11 @@
                     :class="message.isReaction ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'"
                   >
                     {{ message.isReaction ? '👍' : '⚡' }}
-                    {{ message.isReaction ? 'Reaction' : 'Command' }}
+                    {{ message.isReaction ? (message.reactionToCommand ? `Reaction to ${message.reactionToCommand}` : 'Reaction') : 'Command' }}
                   </span>
-                  <span class="text-sm font-medium text-gray-900">{{ message.command }}</span>
+                  <span class="text-sm font-medium text-gray-900">
+                    {{ message.isReaction && message.reactionToCommand ? message.reactionToCommand : message.command }}
+                  </span>
                   <span v-if="message.reactionEmoji" class="text-lg">{{ message.reactionEmoji }}</span>
                   <span 
                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
@@ -43,7 +45,11 @@
                   </span>
                 </div>
                 
-                <p class="text-sm text-gray-700 mb-2">{{ message.messageText }}</p>
+                <p class="text-sm text-gray-700 mb-2">
+                  {{ message.isReaction && message.reactionToCommand && message.reactionEmoji 
+                     ? `Reaction ${message.reactionEmoji} to command ${message.reactionToCommand}` 
+                     : message.messageText }}
+                </p>
                 
                 <!-- Show reaction context if available -->
                 <div v-if="message.isReaction && message.reactionToMessageText" class="bg-gray-50 p-2 rounded text-xs mb-2">

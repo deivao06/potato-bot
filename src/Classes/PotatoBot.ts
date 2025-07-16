@@ -20,6 +20,7 @@ export default class PotatoBot implements BotInterface {
     saveCreds: any;
     commandRegistry: CommandRegistry;
     private groupMetadataCache: Map<string, any> = new Map();
+    private pendingSelections: Map<string, { commandName: string; timestamp: Date; chatId: string }> = new Map();
 
     constructor() {
         this.prefixes = ['!', '-'];
@@ -35,6 +36,11 @@ export default class PotatoBot implements BotInterface {
             this.groupMetadataCache.clear();
             console.log('Group metadata cache cleared');
         }, 30 * 60 * 1000);
+        
+        // Clear expired pending selections every 5 minutes
+        setInterval(() => {
+            this.clearExpiredPendingSelections();
+        }, 5 * 60 * 1000);
     }
 
     private async initializeBot(): Promise<void> {
@@ -126,7 +132,16 @@ export default class PotatoBot implements BotInterface {
             console.log('Processing reaction:', JSON.stringify(reaction, null, 2));
             
             if (reaction.reaction?.text) {
-                console.log('Found reaction message:', reaction.reaction?.text);
+                const reactionMessageId = reaction.key?.id;
+                
+                // Check if this reaction is for a pending selection
+                if (!reactionMessageId || !this.pendingSelections.has(reactionMessageId)) {
+                    console.log('⏭️  Ignoring reaction - not for a pending selection');
+                    continue;
+                }
+                
+                const pendingSelection = this.pendingSelections.get(reactionMessageId)!;
+                console.log('✅ Found pending selection:', pendingSelection);
                 
                 // Extract reaction info
                 const remoteJid = reaction.key?.remoteJid || 'unknown';
@@ -165,15 +180,16 @@ export default class PotatoBot implements BotInterface {
                     senderName: reaction.pushName || 'Unknown',
                     chatType: chatType,
                     reactionToMessageId: originalMessage?.id,
-                    reactionToMessageText: originalMessage?.messageText
+                    reactionToMessageText: originalMessage?.messageText,
+                    reactionToCommand: pendingSelection.commandName
                 };
                 
                 dashboardServer.addBotMessage(botMessage);
                 
-                // Check if it's a Steam command reaction
-                const steamCommand = this.commandRegistry.getCommand('steam');
-                if (steamCommand && 'handleReaction' in steamCommand) {
-                    console.log('Calling Steam command handleReaction');
+                // Get the command that's waiting for this reaction
+                const command = this.commandRegistry.getCommand(pendingSelection.commandName);
+                if (command && 'handleReaction' in command) {
+                    console.log(`Calling ${pendingSelection.commandName} command handleReaction`);
                     
                     // Create a wrapper sock to capture bot responses from reactions
                     const sockWithLogging = {
@@ -195,9 +211,13 @@ export default class PotatoBot implements BotInterface {
                         }
                     };
                     
-                    (steamCommand as any).handleReaction(reaction, sockWithLogging);
+                    (command as any).handleReaction(reaction, sockWithLogging);
+                    
+                    // Remove from pending selections after processing
+                    this.pendingSelections.delete(reactionMessageId);
+                    console.log('🗑️  Removed processed pending selection');
                 } else {
-                    console.log('Steam command not found or no handleReaction method');
+                    console.log(`Command ${pendingSelection.commandName} not found or no handleReaction method`);
                 }
             } else {
                 console.log('No reactionMessage found in reaction');
@@ -207,6 +227,42 @@ export default class PotatoBot implements BotInterface {
 
     private isCommand(messageText: string): boolean {
         return this.prefixes.some(prefix => messageText.startsWith(prefix));
+    }
+    
+    /**
+     * Add a message to pending selections (when a command sends interactive message)
+     */
+    public addPendingSelection(messageId: string, commandName: string, chatId: string): void {
+        this.pendingSelections.set(messageId, {
+            commandName,
+            timestamp: new Date(),
+            chatId
+        });
+        console.log(`📝 Added pending selection: ${messageId} for command: ${commandName}`);
+    }
+    
+    /**
+     * Remove a pending selection
+     */
+    public removePendingSelection(messageId: string): void {
+        if (this.pendingSelections.delete(messageId)) {
+            console.log(`🗑️  Removed pending selection: ${messageId}`);
+        }
+    }
+    
+    /**
+     * Clear expired pending selections (older than 10 minutes)
+     */
+    private clearExpiredPendingSelections(): void {
+        const now = new Date();
+        const expiredThreshold = 10 * 60 * 1000; // 10 minutes
+        
+        this.pendingSelections.forEach((selection, messageId) => {
+            if (now.getTime() - selection.timestamp.getTime() > expiredThreshold) {
+                this.pendingSelections.delete(messageId);
+                console.log(`⏰ Expired pending selection: ${messageId} for command: ${selection.commandName}`);
+            }
+        });
     }
 
     private async getGroupName(jid: string): Promise<string> {
@@ -291,14 +347,22 @@ export default class PotatoBot implements BotInterface {
                     dashboardServer.updateBotResponse(botMessage.id, response, imageUrl);
                     
                     // Send the actual message
-                    return await this.sock.sendMessage(jid, content);
+                    const result = await this.sock.sendMessage(jid, content);
+                    
+                    // Only add to pending selections if message contains selection indicators
+                    if (result && result.key && result.key.id && response.includes('React')) {
+                        this.addPendingSelection(result.key.id, commandName, remoteJid);
+                    }
+                    
+                    return result;
                 }
             };
 
             await command.execute({
                 messageInfo,
                 args,
-                sock: sockWithLogging
+                sock: sockWithLogging,
+                bot: this
             });
         }
     }

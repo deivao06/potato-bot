@@ -93,6 +93,7 @@ var PotatoBot = /** @class */ (function () {
     function PotatoBot() {
         var _this = this;
         this.groupMetadataCache = new Map();
+        this.pendingSelections = new Map();
         this.connectionUpdate = function (update) { return __awaiter(_this, void 0, void 0, function () {
             var connection, lastDisconnect, qr, _a, _b;
             var _c, _d;
@@ -159,13 +160,20 @@ var PotatoBot = /** @class */ (function () {
                         console.log('=== REACTION EVENT TRIGGERED ===');
                         console.log('Reaction event received:', JSON.stringify(reactions, null, 2));
                         _loop_1 = function (reaction) {
-                            var remoteJid, senderPhone, isGroup, chatType, chatName, formattedPhone, originalMessage, botMessage_1, steamCommand, sockWithLogging;
+                            var reactionMessageId, pendingSelection, remoteJid, senderPhone, isGroup, chatType, chatName, formattedPhone, originalMessage, botMessage_1, command, sockWithLogging;
                             return __generator(this, function (_h) {
                                 switch (_h.label) {
                                     case 0:
                                         console.log('Processing reaction:', JSON.stringify(reaction, null, 2));
                                         if (!((_a = reaction.reaction) === null || _a === void 0 ? void 0 : _a.text)) return [3 /*break*/, 4];
-                                        console.log('Found reaction message:', (_b = reaction.reaction) === null || _b === void 0 ? void 0 : _b.text);
+                                        reactionMessageId = (_b = reaction.key) === null || _b === void 0 ? void 0 : _b.id;
+                                        // Check if this reaction is for a pending selection
+                                        if (!reactionMessageId || !this_1.pendingSelections.has(reactionMessageId)) {
+                                            console.log('⏭️  Ignoring reaction - not for a pending selection');
+                                            return [2 /*return*/, "continue"];
+                                        }
+                                        pendingSelection = this_1.pendingSelections.get(reactionMessageId);
+                                        console.log('✅ Found pending selection:', pendingSelection);
                                         remoteJid = ((_c = reaction.key) === null || _c === void 0 ? void 0 : _c.remoteJid) || 'unknown';
                                         senderPhone = ((_d = reaction.key) === null || _d === void 0 ? void 0 : _d.participant) || ((_e = reaction.key) === null || _e === void 0 ? void 0 : _e.fromMe) ? 'bot' : 'unknown';
                                         isGroup = remoteJid.includes('@g.us');
@@ -201,12 +209,13 @@ var PotatoBot = /** @class */ (function () {
                                             senderName: reaction.pushName || 'Unknown',
                                             chatType: chatType,
                                             reactionToMessageId: originalMessage === null || originalMessage === void 0 ? void 0 : originalMessage.id,
-                                            reactionToMessageText: originalMessage === null || originalMessage === void 0 ? void 0 : originalMessage.messageText
+                                            reactionToMessageText: originalMessage === null || originalMessage === void 0 ? void 0 : originalMessage.messageText,
+                                            reactionToCommand: pendingSelection.commandName
                                         };
                                         dashboard_server_1.dashboardServer.addBotMessage(botMessage_1);
-                                        steamCommand = this_1.commandRegistry.getCommand('steam');
-                                        if (steamCommand && 'handleReaction' in steamCommand) {
-                                            console.log('Calling Steam command handleReaction');
+                                        command = this_1.commandRegistry.getCommand(pendingSelection.commandName);
+                                        if (command && 'handleReaction' in command) {
+                                            console.log("Calling ".concat(pendingSelection.commandName, " command handleReaction"));
                                             sockWithLogging = __assign(__assign({}, this_1.sock), { sendMessage: function (jid, content) { return __awaiter(_this, void 0, void 0, function () {
                                                     var response, imageUrl;
                                                     return __generator(this, function (_a) {
@@ -224,10 +233,13 @@ var PotatoBot = /** @class */ (function () {
                                                         }
                                                     });
                                                 }); } });
-                                            steamCommand.handleReaction(reaction, sockWithLogging);
+                                            command.handleReaction(reaction, sockWithLogging);
+                                            // Remove from pending selections after processing
+                                            this_1.pendingSelections.delete(reactionMessageId);
+                                            console.log('🗑️  Removed processed pending selection');
                                         }
                                         else {
-                                            console.log('Steam command not found or no handleReaction method');
+                                            console.log("Command ".concat(pendingSelection.commandName, " not found or no handleReaction method"));
                                         }
                                         return [3 /*break*/, 5];
                                     case 4:
@@ -265,6 +277,10 @@ var PotatoBot = /** @class */ (function () {
             _this.groupMetadataCache.clear();
             console.log('Group metadata cache cleared');
         }, 30 * 60 * 1000);
+        // Clear expired pending selections every 5 minutes
+        setInterval(function () {
+            _this.clearExpiredPendingSelections();
+        }, 5 * 60 * 1000);
     }
     PotatoBot.prototype.initializeBot = function () {
         return __awaiter(this, void 0, void 0, function () {
@@ -323,6 +339,39 @@ var PotatoBot = /** @class */ (function () {
     PotatoBot.prototype.isCommand = function (messageText) {
         return this.prefixes.some(function (prefix) { return messageText.startsWith(prefix); });
     };
+    /**
+     * Add a message to pending selections (when a command sends interactive message)
+     */
+    PotatoBot.prototype.addPendingSelection = function (messageId, commandName, chatId) {
+        this.pendingSelections.set(messageId, {
+            commandName: commandName,
+            timestamp: new Date(),
+            chatId: chatId
+        });
+        console.log("\uD83D\uDCDD Added pending selection: ".concat(messageId, " for command: ").concat(commandName));
+    };
+    /**
+     * Remove a pending selection
+     */
+    PotatoBot.prototype.removePendingSelection = function (messageId) {
+        if (this.pendingSelections.delete(messageId)) {
+            console.log("\uD83D\uDDD1\uFE0F  Removed pending selection: ".concat(messageId));
+        }
+    };
+    /**
+     * Clear expired pending selections (older than 10 minutes)
+     */
+    PotatoBot.prototype.clearExpiredPendingSelections = function () {
+        var _this = this;
+        var now = new Date();
+        var expiredThreshold = 10 * 60 * 1000; // 10 minutes
+        this.pendingSelections.forEach(function (selection, messageId) {
+            if (now.getTime() - selection.timestamp.getTime() > expiredThreshold) {
+                _this.pendingSelections.delete(messageId);
+                console.log("\u23F0 Expired pending selection: ".concat(messageId, " for command: ").concat(selection.commandName));
+            }
+        });
+    };
     PotatoBot.prototype.getGroupName = function (jid) {
         return __awaiter(this, void 0, void 0, function () {
             var cached, metadata, error_1;
@@ -352,7 +401,7 @@ var PotatoBot = /** @class */ (function () {
     };
     PotatoBot.prototype.handleCommand = function (messageText, messageInfo) {
         return __awaiter(this, void 0, void 0, function () {
-            var usedPrefix, commandWithArgs, _a, commandName, args, command, remoteJid, senderPhone, isGroup, chatType, chatName, formattedPhone, botMessage_2, sockWithLogging;
+            var usedPrefix, commandWithArgs, _a, commandName, args, command, remoteJid_1, senderPhone, isGroup, chatType, chatName, formattedPhone, botMessage_2, sockWithLogging;
             var _this = this;
             var _b, _c, _d, _e;
             return __generator(this, function (_f) {
@@ -365,13 +414,13 @@ var PotatoBot = /** @class */ (function () {
                         _a = commandWithArgs.split(' '), commandName = _a[0], args = _a.slice(1);
                         command = this.commandRegistry.getCommand(commandName.toLowerCase());
                         if (!command) return [3 /*break*/, 5];
-                        remoteJid = ((_b = messageInfo.key) === null || _b === void 0 ? void 0 : _b.remoteJid) || 'unknown';
+                        remoteJid_1 = ((_b = messageInfo.key) === null || _b === void 0 ? void 0 : _b.remoteJid) || 'unknown';
                         senderPhone = ((_c = messageInfo.key) === null || _c === void 0 ? void 0 : _c.participant) || ((_d = messageInfo.key) === null || _d === void 0 ? void 0 : _d.remoteJid) || 'unknown';
-                        isGroup = remoteJid.includes('@g.us');
+                        isGroup = remoteJid_1.includes('@g.us');
                         chatType = isGroup ? 'group' : 'private';
                         chatName = 'Unknown';
                         if (!isGroup) return [3 /*break*/, 2];
-                        return [4 /*yield*/, this.getGroupName(remoteJid)];
+                        return [4 /*yield*/, this.getGroupName(remoteJid_1)];
                     case 1:
                         chatName = _f.sent();
                         return [3 /*break*/, 3];
@@ -388,7 +437,7 @@ var PotatoBot = /** @class */ (function () {
                     case 3:
                         botMessage_2 = {
                             id: ((_e = messageInfo.key) === null || _e === void 0 ? void 0 : _e.id) || Date.now().toString(),
-                            groupId: remoteJid,
+                            groupId: remoteJid_1,
                             groupName: chatName,
                             messageText: messageText,
                             command: commandName,
@@ -400,7 +449,7 @@ var PotatoBot = /** @class */ (function () {
                         };
                         dashboard_server_1.dashboardServer.addBotMessage(botMessage_2);
                         sockWithLogging = __assign(__assign({}, this.sock), { sendMessage: function (jid, content) { return __awaiter(_this, void 0, void 0, function () {
-                                var response, imageUrl;
+                                var response, imageUrl, result;
                                 return __generator(this, function (_a) {
                                     switch (_a.label) {
                                         case 0:
@@ -410,16 +459,21 @@ var PotatoBot = /** @class */ (function () {
                                             }
                                             dashboard_server_1.dashboardServer.updateBotResponse(botMessage_2.id, response, imageUrl);
                                             return [4 /*yield*/, this.sock.sendMessage(jid, content)];
-                                        case 1: 
-                                        // Send the actual message
-                                        return [2 /*return*/, _a.sent()];
+                                        case 1:
+                                            result = _a.sent();
+                                            // Only add to pending selections if message contains selection indicators
+                                            if (result && result.key && result.key.id && response.includes('React')) {
+                                                this.addPendingSelection(result.key.id, commandName, remoteJid_1);
+                                            }
+                                            return [2 /*return*/, result];
                                     }
                                 });
                             }); } });
                         return [4 /*yield*/, command.execute({
                                 messageInfo: messageInfo,
                                 args: args,
-                                sock: sockWithLogging
+                                sock: sockWithLogging,
+                                bot: this
                             })];
                     case 4:
                         _f.sent();

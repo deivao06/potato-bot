@@ -2,6 +2,7 @@ export interface CommandContext {
     messageInfo: any;
     args: string[];
     sock: any;
+    bot?: any; // Optional bot instance for accessing methods like addPendingSelection
 }
 
 export abstract class BaseCommand {

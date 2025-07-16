@@ -75,7 +75,6 @@ var SteamCommand = /** @class */ (function (_super) {
         _this.name = 'steam';
         _this.description = 'Get Steam game information including player count, price, and details';
         _this.pendingSelections = new Map();
-        _this.selectionMessages = new Map(); // chatId -> messageId
         return _this;
     }
     SteamCommand.prototype.execute = function (context) {
@@ -145,7 +144,7 @@ var SteamCommand = /** @class */ (function (_super) {
     };
     SteamCommand.prototype.handleReaction = function (reactionInfo, sock) {
         return __awaiter(this, void 0, void 0, function () {
-            var chatId, messageId, expectedMessageId, pendingGames, reaction, selectedGameIndex, selectedGame, gameInfo, error_2;
+            var chatId, messageId, pendingGames, reaction, selectedGameIndex, selectedGame, gameInfo, error_2;
             var _a;
             return __generator(this, function (_b) {
                 switch (_b.label) {
@@ -155,15 +154,10 @@ var SteamCommand = /** @class */ (function (_super) {
                         messageId = reactionInfo.key.id;
                         console.log('Chat ID:', chatId);
                         console.log('Message ID:', messageId);
-                        expectedMessageId = this.selectionMessages.get(chatId);
-                        if (!expectedMessageId || expectedMessageId !== messageId) {
-                            console.log('Reaction not for selection message. Expected:', expectedMessageId, 'Got:', messageId);
-                            return [2 /*return*/];
-                        }
-                        pendingGames = this.pendingSelections.get(chatId);
-                        console.log('Pending games for chat:', pendingGames);
+                        pendingGames = this.pendingSelections.get(messageId);
+                        console.log('Pending games for message:', pendingGames);
                         if (!pendingGames) {
-                            console.log('No pending games found for this chat');
+                            console.log('No pending games found for this message');
                             return [2 /*return*/];
                         }
                         reaction = (_a = reactionInfo.reaction) === null || _a === void 0 ? void 0 : _a.text;
@@ -197,9 +191,8 @@ var SteamCommand = /** @class */ (function (_super) {
                         if (!(selectedGameIndex < pendingGames.length)) return [3 /*break*/, 7];
                         selectedGame = pendingGames[selectedGameIndex];
                         console.log('Selected game:', selectedGame);
-                        // Clean up tracking for this chat
-                        this.pendingSelections.delete(chatId);
-                        this.selectionMessages.delete(chatId);
+                        // Clean up tracking for this message
+                        this.pendingSelections.delete(messageId);
                         _b.label = 1;
                     case 1:
                         _b.trys.push([1, 4, , 6]);
@@ -284,8 +277,6 @@ var SteamCommand = /** @class */ (function (_super) {
                 switch (_a.label) {
                     case 0:
                         chatId = messageInfo.key.remoteJid;
-                        // Store pending selection for this chat
-                        this.pendingSelections.set(chatId, games);
                         selectionText = "🎮 Found multiple games! React to select:\n\n";
                         emojis = ['👍', '❤️', '🙏', '😮', '😢', '😂'];
                         games.forEach(function (game, index) {
@@ -299,16 +290,16 @@ var SteamCommand = /** @class */ (function (_super) {
                             }))];
                     case 1:
                         sentMessage = _a.sent();
-                        // Store the message ID for reaction validation
+                        // Store the games for this specific message ID
                         if (sentMessage && sentMessage.key && sentMessage.key.id) {
-                            this.selectionMessages.set(chatId, sentMessage.key.id);
-                            console.log('Stored selection message ID:', sentMessage.key.id, 'for chat:', chatId);
+                            this.pendingSelections.set(sentMessage.key.id, games);
+                            console.log('Stored selection games for message ID:', sentMessage.key.id);
+                            // Set timeout to clear pending selection after 60 seconds
+                            setTimeout(function () {
+                                _this.pendingSelections.delete(sentMessage.key.id);
+                                console.log('Cleared expired selection for message:', sentMessage.key.id);
+                            }, 60000);
                         }
-                        // Set timeout to clear pending selection after 60 seconds
-                        setTimeout(function () {
-                            _this.pendingSelections.delete(chatId);
-                            _this.selectionMessages.delete(chatId);
-                        }, 60000);
                         return [2 /*return*/];
                 }
             });

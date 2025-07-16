@@ -12,6 +12,7 @@ export interface BotMessage {
   chatType: 'group' | 'private';
   reactionToMessageId?: string;
   reactionToMessageText?: string;
+  reactionToCommand?: string; // The original command that this reaction is responding to
   botResponse?: string;
   botResponseTimestamp?: Date;
   botResponseImage?: string;
