@@ -6,13 +6,16 @@
   "scripts": {
     "start:dev": "npx nodemon",
     "build": "rimraf ./build && tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dashboard:dev": "cd dashboard && vite",
+    "dashboard:build": "cd dashboard && vite build"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/axios": "^0.14.4",
     "@types/node": "^22.15.29",
     "@types/qrcode": "^1.5.5",
+    "@types/ws": "^8.18.1",
     "nodemon": "^3.1.10",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
@@ -20,7 +23,18 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.10.0",
     "baileys": "^6.7.18",
-    "qrcode": "^1.5.4"
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "postcss": "^8.5.6",
+    "qrcode": "^1.5.4",
+    "tailwindcss": "^4.1.11",
+    "vite": "^7.0.4",
+    "vue": "^3.4.0"
   }
 }
