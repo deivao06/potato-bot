@@ -1,4 +1,5 @@
 "use strict";
+// AIDEV-NOTE: Don't insert specific command rules here, keep specific command rules for the specific command.
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {
@@ -88,7 +89,7 @@ var pino_1 = __importDefault(require("pino"));
 var qrcode_1 = __importDefault(require("qrcode"));
 var CommandRegistry_1 = require("../Commands/CommandRegistry");
 var dashboard_server_1 = require("../api/dashboard-server");
-// Claude, don't insert specific command rules here, keep specific command rules for the specific rule.
+var SingleFileAuthState_1 = require("../auth/SingleFileAuthState");
 var PotatoBot = /** @class */ (function () {
     function PotatoBot() {
         var _this = this;
@@ -308,7 +309,7 @@ var PotatoBot = /** @class */ (function () {
             var _a, state, saveCreds;
             return __generator(this, function (_b) {
                 switch (_b.label) {
-                    case 0: return [4 /*yield*/, (0, baileys_1.useMultiFileAuthState)("auth_info_baileys")];
+                    case 0: return [4 /*yield*/, (0, SingleFileAuthState_1.useSingleFileAuthState)("./auth_state.json")];
                     case 1:
                         _a = _b.sent(), state = _a.state, saveCreds = _a.saveCreds;
                         this.saveCreds = saveCreds;

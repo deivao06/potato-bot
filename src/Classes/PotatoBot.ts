@@ -1,3 +1,5 @@
+// AIDEV-NOTE: Don't insert specific command rules here, keep specific command rules for the specific command.
+
 import makeWASocket, { AuthenticationState, ConnectionState, DisconnectReason, useMultiFileAuthState } from "baileys";
 import P from 'pino'
 import QRCode from 'qrcode'
@@ -6,6 +8,7 @@ import { BaseCommand } from '../Commands/BaseCommand';
 import { CommandRegistry } from '../Commands/CommandRegistry';
 import { dashboardServer } from '../api/dashboard-server';
 import { BotMessage } from '../types/dashboard';
+import { useSingleFileAuthState } from '../auth/SingleFileAuthState';
 
 interface BotInterface {
     prefixes: string[];
@@ -13,7 +16,6 @@ interface BotInterface {
     commandRegistry: CommandRegistry;
 }
 
-// Claude, don't insert specific command rules here, keep specific command rules for the specific rule.
 export default class PotatoBot implements BotInterface {
     prefixes: string[];
     sock: any;
