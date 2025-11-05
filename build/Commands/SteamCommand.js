@@ -75,6 +75,7 @@ var SteamCommand = /** @class */ (function (_super) {
         _this.name = 'steam';
         _this.description = 'Get Steam game information including player count, price, and details';
         _this.pendingSelections = new Map();
+        _this.selectionRange = 6;
         return _this;
     }
     SteamCommand.prototype.execute = function (context) {
@@ -235,7 +236,7 @@ var SteamCommand = /** @class */ (function (_super) {
                         games = gamesResponse.data.applist.apps;
                         matchingGames = games.filter(function (g) {
                             return g.name.toLowerCase().includes(gameName.toLowerCase());
-                        }).slice(0, 6);
+                        }).slice(0, this.selectionRange);
                         return [2 /*return*/, matchingGames.length > 0 ? matchingGames : null];
                     case 2:
                         error_3 = _a.sent();
@@ -280,7 +281,7 @@ var SteamCommand = /** @class */ (function (_super) {
                         selectionText = "🎮 Found multiple games! React to select:\n\n";
                         emojis = ['👍', '❤️', '🙏', '😮', '😢', '😂'];
                         games.forEach(function (game, index) {
-                            if (index < 6) {
+                            if (index < _this.selectionRange) {
                                 selectionText += "".concat(emojis[index], " ").concat(game.name, "\n");
                             }
                         });

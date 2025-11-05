@@ -1,8 +1,7 @@
-import makeWASocket, { AuthenticationState, ConnectionState, DisconnectReason, useMultiFileAuthState } from "baileys";
+import makeWASocket, { ConnectionState, DisconnectReason, useMultiFileAuthState } from "baileys";
 import P from 'pino'
 import QRCode from 'qrcode'
 import { Boom } from "@hapi/boom";
-import { BaseCommand } from '../Commands/BaseCommand';
 import { CommandRegistry } from '../Commands/CommandRegistry';
 import { dashboardServer } from '../api/dashboard-server';
 import { BotMessage } from '../types/dashboard';

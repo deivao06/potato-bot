@@ -37,6 +37,7 @@ export class SteamCommand extends BaseCommand {
     name = 'steam';
     description = 'Get Steam game information including player count, price, and details';
     private pendingSelections: Map<string, SteamGame[]> = new Map();
+    selectionRange: number = 6;
 
     async execute(context: CommandContext): Promise<void> {
         const { messageInfo, args, sock } = context;
@@ -148,7 +149,7 @@ export class SteamCommand extends BaseCommand {
             // Find games that contain the search term (case-insensitive for search, but return original names)
             const matchingGames = games.filter(g => 
                 g.name.toLowerCase().includes(gameName.toLowerCase())
-            ).slice(0, 6); // Get first 6 matches
+            ).slice(0, this.selectionRange); // Get first 10 matches
 
             return matchingGames.length > 0 ? matchingGames : null;
 
@@ -185,7 +186,7 @@ export class SteamCommand extends BaseCommand {
         
         const emojis = ['👍', '❤️', '🙏', '😮', '😢', '😂'];
         games.forEach((game, index) => {
-            if (index < 6) {
+            if (index < this.selectionRange) {
                 selectionText += `${emojis[index]} ${game.name}\n`;
             }
         });
